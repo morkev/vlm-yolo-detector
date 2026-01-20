@@ -1,0 +1,12 @@
+names:
+  0: diagram
+  1: component
+  2: warning
+  3: procedure
+  4: specification
+  5: table
+  6: schematic
+  7: photo
+path: C:\Users\mdfar\Repositories\yolo-gen\data\processed
+train: images/train
+val: images/val

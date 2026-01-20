@@ -1,0 +1,140 @@
+# YoloGen Configuration for Equipment Manuals RAG
+# Optimized for extracting and describing images from technical documentation
+#
+# Usage: python train.py --config configs/equipment_manuals.yaml
+
+# ============================================================
+# DATASET
+# ============================================================
+# Point this to your processed PDF images after running:
+#   python scripts/extract_pdf_images.py --pdf-dir data/manuals --output-dir data/processed
+data: data/processed/dataset.yaml
+
+# ============================================================
+# YOLO TRAINING
+# ============================================================
+# YOLO will learn to detect specific types of content in manual images
+yolo:
+  model: yolov8n.pt               # Start with nano for quick experiments
+  epochs: 20                      # Reduced for CPU training (increase for GPU)
+  batch: 8                        # Reduced for CPU (increase to 16-32 for GPU)
+  imgsz: 640
+
+  # Optimizer
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  warmup_epochs: 3
+
+  # Augmentation - reduced for technical diagrams
+  hsv_h: 0.01
+  hsv_s: 0.3
+  hsv_v: 0.2
+  degrees: 0.0                    # No rotation for diagrams
+  translate: 0.1
+  scale: 0.3
+  fliplr: 0.0                     # No flip - text orientation matters
+  mosaic: 0.5                     # Reduced mosaic
+  mixup: 0.0
+
+  # Early stopping
+  patience: 50
+
+# ============================================================
+# VLM TRAINING (Vision-Language Model)
+# ============================================================
+vlm:
+  enabled: true
+  # Qwen 3 VL 4B is a good balance of quality and memory
+  model: Qwen/Qwen3-VL-4B-Instruct
+  
+  epochs: 3
+  batch_size: 1
+  lr: 0.00002
+  precision: 4bit
+  max_samples: 10000
+
+  # LoRA settings
+  lora_r: 64
+  lora_alpha: 16
+  lora_dropout: 0.05
+
+  # Memory optimization
+  gradient_checkpointing: true
+  gradient_accumulation: 4
+
+# ============================================================
+# VLM DATASET GENERATION
+# ============================================================
+# Customized prompts for technical equipment documentation
+vlm_dataset:
+  box_color: [0, 0, 255]          # BGR Red
+  box_thickness: 3
+
+  system_prompt: |
+    You are a technical documentation assistant specialized in equipment manuals.
+    When shown an image with a red bounding box, identify and describe
+    the component, diagram, or information inside the marked area.
+    Provide clear, technical descriptions that would help someone
+    understand or troubleshoot the equipment.
+
+  # Prompt templates for equipment documentation
+  prompts:
+    - question: "What is shown in the red marked area?"
+      answer: "The red marked area shows {class}. {detail}"
+
+    - question: "Describe the component or diagram in the highlighted region."
+      answer: "This is a {class}. {detail}"
+
+    - question: "What technical information can you identify in the marked area?"
+      answer: "The marked area contains a {class}. {detail}"
+
+    - question: "Explain what this part of the manual is illustrating."
+      answer: "This illustration shows a {class}. {detail}"
+
+    - question: "What equipment or procedure is shown here?"
+      answer: "This shows a {class}. {detail}"
+
+  # Class-specific descriptions for equipment manuals
+  # Customize these based on your actual manual content
+  details:
+    diagram:
+      - "This is a technical diagram illustrating system components and their relationships."
+      - "A schematic representation showing how parts connect together."
+    
+    component:
+      - "This shows an individual component or part of the equipment."
+      - "A detailed view of a specific machine part."
+    
+    warning:
+      - "This is a safety warning or caution notice."
+      - "Important safety information that should be followed."
+    
+    procedure:
+      - "This illustrates steps in a maintenance or operation procedure."
+      - "A visual guide showing how to perform a specific task."
+    
+    specification:
+      - "This contains technical specifications or measurements."
+      - "Detailed specifications for the equipment."
+    
+    table:
+      - "This is a data table with specifications or reference values."
+      - "A table containing technical parameters."
+    
+    schematic:
+      - "An electrical or hydraulic schematic diagram."
+      - "A technical schematic showing system connections."
+    
+    photo:
+      - "A photograph of actual equipment or components."
+      - "A real-world image of the equipment."
+
+# ============================================================
+# OUTPUT
+# ============================================================
+output:
+  save_dir: runs
+  export_onnx: true
