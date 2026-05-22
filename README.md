@@ -1,30 +1,28 @@
 # VLM YOLO Detector
 
-VLM-powered image extraction and semantic search for equipment manuals. This repository provides the image data pipeline for the agentic-rag system.
+Offline vision-language data pipeline for a multimodal manufacturing assistant. This repository extracts images from equipment manuals, generates semantic descriptions via a Vision-Language Model (VLM), and produces the embedding artifacts consumed at runtime by the agentic reasoning system.
+
+![UI](data/classification.png)
+
+> **Figure 1**: The system categorizes extracted images into types (diagram, schematic, photo, table, chart, ...) to support type-filtered retrieval during agent reasoning.
 
 ## Overview
 
-This tool processes PDF manuals to:
+This tool processes PDF manuals through a three-stage pipeline:
 
 1. **Extract images** from PDF documents (embedded images + rendered pages with diagrams)
-2. **Generate VLM descriptions** for each image using LLaVA via Ollama
-3. **Create semantic embeddings** for intelligent image search
-4. **Integrate with agentic-rag** for visual content retrieval
+2. **Generate VLM descriptions** for each image using LLaVA via Ollama, which produces contextual natural-language descriptions based on page numbers and surrounding text
+3. **Create semantic embeddings** (384-dimensions, sentence-transformers/all-MiniLM-L6-v2) enabling cosine-similarity image retrieval at query time
+4. **Content-type classification** in which extracted images are categorized (diagram, schematic, photo, table, chart) to support type-filtered retrieval
 
-## Data Pipeline Status
-
-| Step | Output |
-|------|--------|
-| PDF Extraction | 2,827 images from 30 PDFs |
-| VLM Descriptions | Contextual descriptions in image_index.json |
-| Semantic Embeddings | 384-dim embeddings in image_embeddings.npy |
+The resulting artifacts are consumed by the agentic-rag runtime's `image_search` tool, which performs semantic matching between user queries and VLM descriptions to grab relevant technical visuals alongside textual evidence.
 
 ## Getting Started
 
 ### Prerequisites
 
 - **Python 3.10+** with pip
-- **Ollama** installed and running (download from ollama.com/download)
+- **Ollama** installed and running
 - **LLaVA model** for VLM descriptions (pulled automatically by install script)
 
 ### Quick Setup (Windows)
@@ -42,6 +40,7 @@ This will:
 2. Install PyMuPDF and sentence-transformers
 3. Pull the LLaVA 13B model for VLM descriptions
 4. Optionally process any PDFs in data/manuals/
+5. Yes, I automated the whole thing in 3 commands
 
 ### Manual Setup Steps
 
@@ -66,7 +65,7 @@ pip install pymupdf sentence-transformers
 #### 3. Pull Ollama VLM Model
 
 ```bash
-ollama pull llava:13b
+ollama pull hf.co/cjpais/llava-1.6-mistral-7b-gguf:Q4_K_M 
 ```
 
 #### 4. Add PDF Manuals
@@ -90,54 +89,41 @@ python scripts/describe_images_vlm.py --index data/processed/image_index.json
 python scripts/build_embeddings.py
 ```
 
-## Directory Structure
-
-```
-vlm-yolo-detector/
-├── data/
-│   ├── manuals/                    # Source PDF files
-│   └── processed/
-│       ├── images/                 # Extracted images (train/val split)
-│       ├── labels/                 # YOLO format labels
-│       ├── image_index.json        # Image metadata + VLM descriptions
-│       ├── image_embeddings.npy    # Semantic embeddings (384-dim)
-│       └── embedding_mapping.json  # Filename to index mapping
-├── scripts/
-│   ├── extract_all_images.py       # PDF to images
-│   ├── describe_images_vlm.py      # Generate VLM descriptions
-│   ├── build_embeddings.py         # Create semantic embeddings
-│   ├── auto_label_images.py        # YOLO auto-labeling
-│   └── train_classifier.py         # Train YOLO classifier
-├── runs/                           # Trained model weights
-├── configs/                        # YOLO configuration files
-├── yologen/                        # Python package
-├── install.bat                     # Automated installation script
-├── requirements.txt                # Python dependencies
-└── pyproject.toml                  # Project configuration
-```
-
 ## Integration with Agentic RAG
 
-The agentic-rag repository uses this data for semantic image search:
+- **vlm-yolo-detector**: Offline pipeline, which runs once per manual set to produce artifacts. Requires GPU-intensive VLM inference (LLaVA 13B).
+- **agentic-rag**: Runtime service, loads the pre-built artifacts and serves multimodal answers via FastAPI + JavaScript frontend.
+
+At runtime, `agentic-rag/app/backend/api/tools/image_search.py` loads the artifacts from this repo's `data/processed/` directory:
 
 ```python
-# agentic-rag/app/backend/api/tools/image_search.py
-YOLOGEN_DIR = Path("..") / "vlm-yolo-detector"
-IMAGE_INDEX_PATH = YOLOGEN_DIR / "data" / "processed" / "image_index.json"
-EMBEDDING_NPY_PATH = YOLOGEN_DIR / "data" / "processed" / "image_embeddings.npy"
+IMAGE_INDEX_PATH   = "<parent>/vlm-yolo-detector/data/processed/image_index.json"
+EMBEDDING_NPY_PATH = "<parent>/vlm-yolo-detector/data/processed/image_embeddings.npy"
+MAPPING_PATH       = "<parent>/vlm-yolo-detector/data/processed/embedding_mapping.json"
+IMAGES_DIR         = "<parent>/vlm-yolo-detector/data/processed/images/"
 ```
 
 **Setup for integration:**
 
 1. Clone this repository alongside agentic-rag in the same parent directory
-2. Run `install.bat` to process PDFs and generate embeddings
-3. The agentic-rag system will automatically find the embeddings
+2. Run `install.bat` to process PDFs and generate all artifacts
+3. The agentic-rag system automatically resolves the sibling path at startup
 
-Example directory structure:
+Required directory layout:
 ```
 Repositories/
-├── agentic-rag/
-└── vlm-yolo-detector/
+├── agentic-rag/          # Runtime (FastAPI + frontend)
+└── vlm-yolo-detector/    # Offline pipeline (this repo)
+```
+
+### Offline Transfer
+
+The agentic-rag project includes bundle scripts that package this repo's `data/processed/` alongside other artifacts, depending on the selected mode:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/export_offline_bundle.ps1
+
+powershell -ExecutionPolicy Bypass -File scripts/import_offline_bundle.ps1
 ```
 
 ## Processing Scripts
@@ -216,70 +202,17 @@ Maps image filenames to their index in the embeddings array:
 }
 ```
 
-## Troubleshooting
 
-### Ollama Connection Error
 
-**Problem**: Failed to connect to Ollama
+## Architecture Context
 
-**Solution**: 
-1. Verify Ollama is running: `ollama list`
-2. Start Ollama: `ollama serve`
-3. Pull the LLaVA model: `ollama pull llava:13b`
+This repository implements the offline VLM data pipeline described in our research paper.
 
-### No Images Extracted
 
-**Problem**: extract_all_images.py finds no images
+The system addresses the challenge that conventional RAG pipelines operate primarily on text, treating images as auxiliary. By pre-computing semantic descriptions and embeddings offline, the runtime agent can retrieve and reason over visual content (schematics, wiring diagrams, maintenance procedures) with the same fidelity as textual evidence.
 
-**Solutions**:
-1. Verify PDFs are in `data/manuals/`
-2. Try with `--render-all` flag to render pages as images
-3. Lower the `--min-size` threshold
-
-### Embedding Generation Fails
-
-**Problem**: build_embeddings.py fails
-
-**Solutions**:
-1. Verify sentence-transformers is installed: `pip install sentence-transformers`
-2. Check that image_index.json exists and has VLM descriptions
-3. Ensure sufficient disk space for embeddings
-
-### Missing VLM Descriptions
-
-**Problem**: image_index.json has empty vlm_description fields
-
-**Solutions**:
-1. Verify Ollama is running and LLaVA model is pulled
-2. Re-run describe_images_vlm.py
-3. Check Ollama logs for errors
-
-## Requirements
-
-### Core Dependencies
-
-- Python 3.10+
-- PyMuPDF (for PDF processing)
-- sentence-transformers (for embeddings)
-- Pillow (for image processing)
-- NumPy
-
-### Optional Dependencies (for YOLO training)
-
-- ultralytics
-- torch
-- torchvision
-
-### VLM Requirements
-
-- Ollama with LLaVA model
-
-## Related Repositories
-
-- **agentic-rag**: Main RAG pipeline that uses this repository for image search
-  - Repository: https://github.com/Manufacturing-Demonstration-Facility/agentic-rag
-  - Uses the embeddings from this repository for semantic image retrieval
-
-## License
-
-MIT License
+Key design decisions:
+- **LLaVA 13B** for VLM descriptions: balances quality with local inference feasibility
+- **all-MiniLM-L6-v2** (384-dim) for embeddings: lightweight, fast cosine similarity
+- **Content-type classification**: enables the runtime agent to filter by diagram/schematic/photo
+- **Page-text grounding**: VLM descriptions incorporate surrounding page context for better semantic alignment
