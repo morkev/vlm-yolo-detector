@@ -2,7 +2,9 @@
 
 Offline vision-language data pipeline for a multimodal manufacturing assistant. This repository extracts images from equipment manuals, generates semantic descriptions via a Vision-Language Model (VLM), and produces the embedding artifacts consumed at runtime by the agentic reasoning system.
 
-![UI](data/classification.png)
+<div align="center">
+  <img src="data/classification.png" alt="UI" width="500">
+</div>
 
 > **Figure 1**: The system categorizes extracted images into types (diagram, schematic, photo, table, chart, ...) to support type-filtered retrieval during agent reasoning.
 
