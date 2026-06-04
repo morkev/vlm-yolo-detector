@@ -76,7 +76,7 @@ echo.
 echo [5/6] Setting up Ollama VLM model...
 ollama --version >nul 2>&1
 if errorlevel 1 (
-    echo Skipping VLM model pull (Ollama not installed).
+    echo Skipping VLM model pull ^(Ollama not installed^).
 ) else (
     echo Checking if Ollama is running...
     curl -s http://localhost:11434/api/tags >nul 2>&1
@@ -84,7 +84,7 @@ if errorlevel 1 (
         echo WARNING: Ollama is not running. Start it with: ollama serve
         echo Skipping VLM model pull.
     ) else (
-        echo Pulling LLaVA 13B model for VLM descriptions (this may take a while)...
+        echo Pulling LLaVA 13B model for VLM descriptions ^(this may take a while^)...
         ollama pull llava:13b
         if errorlevel 1 (
             echo WARNING: Failed to pull LLaVA model. You can pull it manually later.
