@@ -8,6 +8,26 @@ Offline vision-language data pipeline for a multimodal manufacturing assistant. 
 
 > **Figure 1**: The system categorizes extracted images into types (diagram, schematic, photo, table, chart, ...) to support type-filtered retrieval during agent reasoning.
 
+## Citation
+
+If you use this project or components of the VisTAR-Doc pipeline in your research, please cite:
+
+```bibtex
+@misc{doecode_192170,
+  title        = {Visual-Text Agentic Reasoning for Documents (VisTAR-Doc)},
+  author       = {Mora-Gonzalez, Kevin A. and Kim, Seokpum and Chawla, Komal},
+  year         = {2026},
+  month        = {sep},
+  howpublished = {[Computer Software] \url{[https://doi.org/10.11578/dc.20260915.1](https://doi.org/10.11578/dc.20260915.1)}},
+  doi          = {10.11578/dc.20260915.1},
+  url          = {[https://doi.org/10.11578/dc.20260915.1](https://doi.org/10.11578/dc.20260915.1)}
+}
+```
+
+## Acknowledgements
+
+This work was supported by the U.S. Department of Energy (DOE), Advanced Materials and Manufacturing Technologies Office (AMMTO), and conducted at Oak Ridge National Laboratory, managed by UT-Battelle, LLC under Contract No. DE-AC05-00OR22725. This software is released under the BSD 3-Clause License.
+
 ## Overview
 
 This tool processes PDF manuals through a three-stage pipeline:
@@ -204,17 +224,8 @@ Maps image filenames to their index in the embeddings array:
 }
 ```
 
-
-
 ## Architecture Context
 
 This repository implements the offline VLM data pipeline described in our research paper.
 
-
 The system addresses the challenge that conventional RAG pipelines operate primarily on text, treating images as auxiliary. By pre-computing semantic descriptions and embeddings offline, the runtime agent can retrieve and reason over visual content (schematics, wiring diagrams, maintenance procedures) with the same fidelity as textual evidence.
-
-Key design decisions:
-- **LLaVA 13B** for VLM descriptions: balances quality with local inference feasibility
-- **all-MiniLM-L6-v2** (384-dim) for embeddings: lightweight, fast cosine similarity
-- **Content-type classification**: enables the runtime agent to filter by diagram/schematic/photo
-- **Page-text grounding**: VLM descriptions incorporate surrounding page context for better semantic alignment
